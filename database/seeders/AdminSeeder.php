@@ -1,0 +1,28 @@
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
+use App\Models\User;
+
+class AdminSeeder extends Seeder
+{
+    /**
+     * Run the database seeds.
+     */
+    public function run(): void
+    {
+        User::create([
+            'first_name'   => 'Admin',
+            'last_name'    => 'User',
+            'phone'        => '0999999999', 
+            'password'     => Hash::make('admin123'), 
+            'role'         => 'admin', 
+            'status'       => 'active', 
+            'profile_image'=> null,
+            'birth_date'   => now(),
+            'id_image'     => null,
+        ]);
+    }
+}
