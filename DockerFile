@@ -17,11 +17,11 @@ ENV LOG_CHANNEL stderr
 # Allow composer to run as root
 ENV COMPOSER_ALLOW_SUPERUSER 1
 
-# --- FIX: Install dependencies NOW (during build) ---
+# --- STEP 1: Install Dependencies (Fixes "autoload.php" error) ---
 RUN composer install --no-dev --optimize-autoloader
 
-# --- FIX: Ensure permissions are correct ---
+# --- STEP 2: Fix Permissions ---
 RUN chown -R www-data:www-data /var/www/html
 
-# Start Command (Migrate -> Link Storage -> Clear Cache -> Start Server)
-CMD ["/bin/sh", "-c", "php artisan migrate --force && php artisan storage:link && php artisan optimize:clear && /start.sh"]
+# --- STEP 3: Start Command (Create SQLite DB -> Migrate -> Start) ---
+CMD ["/bin/sh", "-c", "touch /var/www/html/database/database.sqlite && php artisan migrate --force && php artisan storage:link && php artisan optimize:clear && /start.sh"]
