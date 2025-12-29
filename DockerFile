@@ -12,9 +12,16 @@ ENV REAL_IP_HEADER 1
 # Laravel config
 ENV APP_ENV production
 ENV APP_DEBUG false
-ENV LOG_CHANNEL stderr[[1](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQHwFpMXZX2qwlvBoeqz00D1B4HZUjcDOQfXmSN-njD6ReofH59xCuWtB_SWRkyf9WwnoC0121TiwQQJXATFNM_hW0fbpR-jZ-yUqFKd_Ohid_Y0S9qG_n52QyruhpciqUSesbRy1jM%3D)]
+ENV LOG_CHANNEL stderr
 
 # Allow composer to run as root
-ENV COMPOSER_ALLOW_SUPERUSER 1[[1](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQHwFpMXZX2qwlvBoeqz00D1B4HZUjcDOQfXmSN-njD6ReofH59xCuWtB_SWRkyf9WwnoC0121TiwQQJXATFNM_hW0fbpR-jZ-yUqFKd_Ohid_Y0S9qG_n52QyruhpciqUSesbRy1jM%3D)]
+ENV COMPOSER_ALLOW_SUPERUSER 1
 
+# --- FIX: Install dependencies NOW (during build) ---
+RUN composer install --no-dev --optimize-autoloader
+
+# --- FIX: Ensure permissions are correct ---
+RUN chown -R www-data:www-data /var/www/html
+
+# Start Command (Migrate -> Link Storage -> Clear Cache -> Start Server)
 CMD ["/bin/sh", "-c", "php artisan migrate --force && php artisan storage:link && php artisan optimize:clear && /start.sh"]
