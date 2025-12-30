@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Apartment; // Assuming you have this
 use App\Models\Booking;   // Assuming you have this
+use App\Models\AppNotification;
+use App\Services\FCMService;
 use Illuminate\Http\Request;
 
 class AdminController extends Controller
@@ -72,5 +74,38 @@ class AdminController extends Controller
         $user->delete();
 
         return response()->json(['message' => 'User deleted successfully']);
+    }
+
+    // 6. Broadcast Notification to all users with FCM token
+    public function broadcastNotification(Request $request, FCMService $fcm)
+    {
+        $request->validate([
+            'title' => 'required|string',
+            'body' => 'required|string',
+        ]);
+
+        $users = User::whereNotNull('fcm_token')->get();
+        $count = 0;
+
+        foreach ($users as $user) {
+            // 1. Save to History
+            AppNotification::create([
+                'user_id' => $user->id,
+                'title' => $request->title,
+                'body' => $request->body,
+                'type' => 'info', // General info type
+                'is_read' => false
+            ]);
+
+            // 2. Send Push
+            try {
+                $fcm->send($user->fcm_token, $request->title, $request->body);
+                $count++;
+            } catch (\Exception $e) {
+                // Continue if one fails
+            }
+        }
+
+        return response()->json(['message' => "Sent to $count users"]);
     }
 }

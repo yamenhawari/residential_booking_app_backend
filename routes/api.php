@@ -102,6 +102,7 @@ Route::middleware(['auth:sanctum', 'isAdmin'])->prefix('admin')->group(function 
     Route::put('users/{id}/approve', [AdminController::class, 'approveUser']);
     Route::put('users/{id}/reject', [AdminController::class, 'rejectUser']);
     Route::delete('users/{id}', [AdminController::class, 'deleteUser']);
+    Route::post('notifications/broadcast', [AdminController::class, 'broadcastNotification']);
 });
 
 /*
