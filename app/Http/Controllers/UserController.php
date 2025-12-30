@@ -19,14 +19,20 @@ class UserController extends Controller
       'profile_image' => 'required|image|mimes:png,jpg,jpeg,gif|max:2048',
       'birth_date' => 'required',
       'id_image' => 'required|image|mimes:png,jpg,jpeg,gif|max:2048',
-      'role' => 'required|in:owner,tenant'
+      'role' => 'required|in:owner,tenant',
+      'fcm_token' => 'nullable|string'
     ]);
+
+    $path = null;
     if ($request->hasFile('profile_image')) {
       $path = $request->file('profile_image')->store('personal', 'public');
     }
+
+    $idpath = null;
     if ($request->hasFile('id_image')) {
       $idpath = $request->file('id_image')->store('ids', 'public');
     }
+
     $user = User::create([
       'first_name' => $request->first_name,
       'last_name' => $request->last_name,
@@ -36,8 +42,10 @@ class UserController extends Controller
       'birth_date' => $request->birth_date,
       'id_image' => $idpath,
       'role' => $request->role,
-      'status' => 'inactive'
+      'status' => 'inactive',
+      'fcm_token' => $request->fcm_token
     ]);
+
     return response()->json([
       'message' => 'User Registered Successfully',
       'User' => $user
@@ -49,18 +57,38 @@ class UserController extends Controller
     $request->validate([
       'phone' => 'required|string',
       'password' => 'required|string',
+      'fcm_token' => 'nullable|string',
     ]);
-    if (!Auth::attempt($request->only('phone', 'password')))
-      return response()->json(['message' => 'invalid phone or password'], 401);
 
-    $user = User::where('phone', $request->phone)->FirstOrFail();
+    if (!Auth::attempt($request->only('phone', 'password'))) {
+      return response()->json(['message' => 'Invalid phone or password'], 401);
+    }
+
+    $user = User::where('phone', $request->phone)->firstOrFail();
+
+    if ($user->status === 'inactive') {
+      return response()->json([
+        'message' => 'Your account is pending admin approval.',
+        'status' => 'inactive',
+        'User' => $user
+      ], 403);
+    }
+
+    if ($user->status === 'blocked') {
+      return response()->json(['message' => 'Your account has been blocked.'], 403);
+    }
+
+    if ($request->filled('fcm_token')) {
+      $user->update(['fcm_token' => $request->fcm_token]);
+    }
+
     $token = $user->createToken('auth_token')->plainTextToken;
 
     return response()->json([
       'message' => 'Login Successfully',
       'User' => $user,
       'Token' => $token
-    ], 201);
+    ], 200);
   }
 
   public function logout(Request $request)
@@ -69,16 +97,20 @@ class UserController extends Controller
 
     if ($user) {
       $user->update(['fcm_token' => null]);
+      $user->currentAccessToken()::delete();
     }
-    $user->tokens()->delete();
 
-    return response()->json(['message' => 'logout Successfully']);
+    return response()->json(['message' => 'Logged out successfully']);
   }
 
   public function updateFcmToken(Request $request)
   {
     $request->validate(['fcm_token' => 'required|string']);
-    $request->user()->update(['fcm_token' => $request->fcm_token]);
-    return response()->json(['message' => 'Token updated']);
+
+    $request->user()->update([
+      'fcm_token' => $request->fcm_token
+    ]);
+
+    return response()->json(['message' => 'Token updated successfully']);
   }
 }
