@@ -4,12 +4,13 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class CanBook
 {
     public function handle(Request $request, Closure $next)
     {
-        $user = auth()->user();
+        $user = Auth::user();
 
         // ❌ الأدمن ممنوع يحجز
         if ($user->role === 'admin') {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Apartment;
+use App\Models\AppNotification; // Ensure this model exists
 use App\Models\Booking;
 use App\Models\BookingUpdateRequest;
 use App\Services\FCMService;
@@ -16,6 +17,29 @@ class BookingController extends Controller
     public function __construct(FCMService $fcm)
     {
         $this->fcm = $fcm;
+    }
+
+    // --- Helper to Save & Send Notification ---
+    private function sendNotification($user, $title, $body, $type = 'info')
+    {
+        if (!$user) return;
+
+        // 1. Save to Database (So Notification Screen shows history)
+        AppNotification::create([
+            'user_id' => $user->id,
+            'title' => $title,
+            'body' => $body,
+            'type' => $type
+        ]);
+
+        // 2. Send Push Notification (So phone vibrates)
+        if ($user->fcm_token) {
+            try {
+                $this->fcm->send($user->fcm_token, $title, $body);
+            } catch (\Exception $e) {
+                // 
+            }
+        }
     }
 
     private function updateCompletedBookings()
@@ -92,13 +116,13 @@ class BookingController extends Controller
             'status'       => 'pending',
         ]);
 
-        if ($apartment->owner && $apartment->owner->fcm_token) {
-            $this->fcm->send(
-                $apartment->owner->fcm_token,
-                'New Booking Request',
-                'Someone wants to book ' . $apartment->title
-            );
-        }
+        // Notify Owner
+        $this->sendNotification(
+            $apartment->owner,
+            'New Booking Request',
+            'Someone wants to book ' . $apartment->title,
+            'info'
+        );
 
         return response()->json(['success' => true, 'message' => 'Booking request sent!', 'data' => $booking], 201);
     }
@@ -108,8 +132,10 @@ class BookingController extends Controller
         $booking = Booking::with('apartment')->findOrFail($id);
         if (Auth::id() != $booking->tenant_id) return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         if ($booking->status !== 'confirmed') return response()->json(['success' => false, 'message' => 'Only confirmed bookings can be checked out.'], 400);
+
         $booking->update(['status' => 'completed']);
         $booking->apartment()->update(['status' => 'available']);
+
         return response()->json(['success' => true, 'message' => 'Checked out successfully.']);
     }
 
@@ -121,13 +147,13 @@ class BookingController extends Controller
         $booking->update(['status' => 'confirmed']);
         $booking->apartment()->update(['status' => 'rented']);
 
-        if ($booking->tenant && $booking->tenant->fcm_token) {
-            $this->fcm->send(
-                $booking->tenant->fcm_token,
-                'Booking Confirmed!',
-                'Your stay at ' . $booking->apartment->title . ' has been confirmed.'
-            );
-        }
+        // Notify Tenant
+        $this->sendNotification(
+            $booking->tenant,
+            'Booking Confirmed!',
+            'Your stay at ' . $booking->apartment->title . ' has been confirmed.',
+            'success'
+        );
 
         return response()->json(['success' => true, 'message' => 'Booking confirmed.', 'data' => $booking]);
     }
@@ -139,25 +165,41 @@ class BookingController extends Controller
 
         $booking->update(['status' => 'rejected']);
 
-        if ($booking->tenant && $booking->tenant->fcm_token) {
-            $this->fcm->send(
-                $booking->tenant->fcm_token,
-                'Booking Rejected',
-                'Your request for ' . $booking->apartment->title . ' was declined.'
-            );
-        }
+        // Notify Tenant
+        $this->sendNotification(
+            $booking->tenant,
+            'Booking Rejected',
+            'Your request for ' . $booking->apartment->title . ' was declined.',
+            'error'
+        );
 
         return response()->json(['success' => true, 'message' => 'Booking rejected']);
     }
 
     public function cancel($id)
     {
-        $booking = Booking::with('apartment')->findOrFail($id);
-        if (Auth::id() != $booking->tenant_id && Auth::id() != $booking->apartment->owner_id) return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        $booking = Booking::with(['apartment', 'tenant'])->findOrFail($id);
+
+        if (Auth::id() != $booking->tenant_id && Auth::id() != $booking->apartment->owner_id) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
 
         $wasConfirmed = $booking->status === 'confirmed';
         $booking->update(['status' => 'cancelled']);
-        if ($wasConfirmed) $booking->apartment()->update(['status' => 'available']);
+
+        if ($wasConfirmed) {
+            $booking->apartment()->update(['status' => 'available']);
+        }
+
+        // Optional: Notify Owner if Tenant cancelled
+        if (Auth::id() == $booking->tenant_id && $booking->apartment->owner) {
+            $this->sendNotification(
+                $booking->apartment->owner,
+                'Booking Cancelled',
+                'A tenant cancelled their booking for ' . $booking->apartment->title,
+                'warning'
+            );
+        }
 
         return response()->json(['success' => true, 'message' => 'Booking cancelled']);
     }
@@ -220,13 +262,13 @@ class BookingController extends Controller
             'status' => 'pending'
         ]);
 
-        if ($booking->apartment->owner && $booking->apartment->owner->fcm_token) {
-            $this->fcm->send(
-                $booking->apartment->owner->fcm_token,
-                'Date Change Request',
-                'A tenant wants to change dates for ' . $booking->apartment->title
-            );
-        }
+        // Notify Owner
+        $this->sendNotification(
+            $booking->apartment->owner,
+            'Date Change Request',
+            'A tenant wants to change dates for ' . $booking->apartment->title,
+            'warning'
+        );
 
         return response()->json(['success' => true, 'message' => 'Update request sent']);
     }
@@ -247,13 +289,13 @@ class BookingController extends Controller
 
         $update->update(['status' => 'approved']);
 
-        if ($booking->tenant && $booking->tenant->fcm_token) {
-            $this->fcm->send(
-                $booking->tenant->fcm_token,
-                'Update Approved',
-                'Your date change request was approved.'
-            );
-        }
+        // Notify Tenant
+        $this->sendNotification(
+            $booking->tenant,
+            'Update Approved',
+            'Your date change request was approved.',
+            'success'
+        );
 
         return response()->json(['success' => true, 'message' => 'Update approved']);
     }
@@ -266,13 +308,13 @@ class BookingController extends Controller
         }
         $update->update(['status' => 'rejected']);
 
-        if ($update->booking->tenant && $update->booking->tenant->fcm_token) {
-            $this->fcm->send(
-                $update->booking->tenant->fcm_token,
-                'Update Rejected',
-                'Your date change request was declined.'
-            );
-        }
+        // Notify Tenant
+        $this->sendNotification(
+            $update->booking->tenant,
+            'Update Rejected',
+            'Your date change request was declined.',
+            'error'
+        );
 
         return response()->json(['success' => true, 'message' => 'Update rejected']);
     }

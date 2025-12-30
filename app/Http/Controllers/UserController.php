@@ -65,7 +65,13 @@ class UserController extends Controller
 
   public function logout(Request $request)
   {
-    $request->user()->currentAccessToken()->delete();
+    $user = $request->user();
+
+    if ($user) {
+      $user->update(['fcm_token' => null]);
+    }
+    $user->tokens()->delete();
+
     return response()->json(['message' => 'logout Successfully']);
   }
 

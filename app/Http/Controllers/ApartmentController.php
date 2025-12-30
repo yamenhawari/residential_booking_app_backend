@@ -176,7 +176,7 @@ class ApartmentController extends Controller
     {
         $apartment = Apartment::findOrFail($id);
 
-        if ($apartment->owner_id !== auth()->id()) {
+        if ($apartment->owner_id !== Auth::id()) {
             return response()->json(['message' => 'Not authorized'], 403);
         }
 
