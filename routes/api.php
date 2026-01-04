@@ -9,6 +9,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Middleware\CheckLoginStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ChatController;
 
 /*
 |--------------------------------------------------------------------------
@@ -25,10 +26,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
-
     Route::post('logout', [UserController::class, 'logout']);
-
-    // ✅ FIX: تم نقله هنا ليعرف السيرفر من هو المستخدم الحالي
     Route::post('user/fcm-token', [UserController::class, 'updateFcmToken']);
 });
 
@@ -38,27 +36,19 @@ Route::middleware('auth:sanctum')->group(function () {
 |--------------------------------------------------------------------------
 */
 
-// 1. Specific Public Routes (Must come BEFORE {id})
-Route::get('apartment', [ApartmentController::class, 'index']); // Search/List
+Route::get('apartment', [ApartmentController::class, 'index']);
 Route::get('apartments/filter', [ApartmentController::class, 'filter']);
-
-// 2. Specific Owner Routes (Must come BEFORE {id})
 Route::middleware(['auth:sanctum', 'isOwner'])->group(function () {
     Route::post('apartment', [ApartmentController::class, 'store']);
-
-    // [CRITICAL] This MUST be defined before apartment/{id}
     Route::get('apartment/my', [ApartmentController::class, 'myApartments']);
-
     Route::post('apartment/{id}', [ApartmentController::class, 'update']);
     Route::delete('apartment/{id}', [ApartmentController::class, 'destroy']);
     Route::put('apartment/{id}/activate', [ApartmentController::class, 'activate']);
     Route::delete('apartment/{id}/force', [ApartmentController::class, 'forceDelete']);
 });
 
-// 3. Dynamic/Wildcard Public Routes (Must be LAST)
 Route::get('apartment/{id}', [ApartmentController::class, 'show']);
 Route::get('apartments/{id}/reviews', [ReviewController::class, 'index'])->name('apartments.reviews.index');
-
 Route::post('apartments/{id}/categories', [ApartmentController::class, 'addCatergoriesToTask']);
 Route::get('apartments/{apartment_id}/categories', [ApartmentController::class, 'getApartmentCategory']);
 
@@ -113,4 +103,18 @@ Route::middleware(['auth:sanctum', 'isAdmin'])->prefix('admin')->group(function 
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('notifications', [NotificationController::class, 'index']);
     Route::put('notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Chat Routes
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::get('chat/conversations', [ChatController::class, 'index']);
+    Route::post('chat/start', [ChatController::class, 'startChat']);
+    Route::get('chat/{id}/messages', [ChatController::class, 'getMessages']);
+    Route::post('chat/{id}/send', [ChatController::class, 'sendMessage']);
+    Route::delete('chat/conversations/{id}', [ChatController::class, 'deleteConversation']);
+    Route::delete('chat/messages/{id}', [ChatController::class, 'deleteMessage']);
 });
