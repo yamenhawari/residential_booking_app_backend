@@ -12,7 +12,6 @@ class CanBook
     {
         $user = Auth::user();
 
-        // ❌ الأدمن ممنوع يحجز
         if ($user->role === 'admin') {
             return response()->json([
                 'success' => false,
@@ -20,7 +19,6 @@ class CanBook
             ], 403);
         }
 
-        // ✅ يسمح للمالك والمستأجر
         if (!in_array($user->role, ['owner', 'tenant'])) {
             return response()->json([
                 'success' => false,

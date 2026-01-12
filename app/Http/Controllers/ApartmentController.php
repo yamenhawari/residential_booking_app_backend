@@ -37,15 +37,10 @@ class ApartmentController extends Controller
                             ->where('end_date', '>', $start);
                     });
             });
-
-            // IMPORTANT: We DO NOT check $query->where('status', 'available') here. 
-            // Because an apartment might be marked 'rented' generally, but free for next year.
         } else {
-            // If NO dates selected, only show currently available ones
             $query->where('status', 'available');
         }
 
-        // ... [Rest of filters: city, price, etc.] ...
         if ($request->filled('city_id')) {
             $query->where('city_id', $request->city_id);
         }
@@ -76,7 +71,6 @@ class ApartmentController extends Controller
         return response()->json($query->get(), 200);
     }
 
-    // ... [Include the rest of your functions: myApartments, store, update, etc.] ...
     public function myApartments()
     {
         $userId = Auth::id();

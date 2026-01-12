@@ -22,7 +22,6 @@ class ChatController extends Controller
     {
         $userId = Auth::id();
 
-        // Optimized: Uses 'latestMessage' relationship instead of loading all messages
         $conversations = Conversation::where('user1_id', $userId)
             ->orWhere('user2_id', $userId)
             ->with(['user1:id,first_name,last_name,profile_image', 'user2:id,first_name,last_name,profile_image', 'latestMessage'])
@@ -36,7 +35,6 @@ class ChatController extends Controller
                     'other_user_id' => $otherUser->id,
                     'other_user_name' => $otherUser->first_name . ' ' . $otherUser->last_name,
                     'other_user_image' => $otherUser->profile_image,
-                    // The 'body' is automatically decrypted here by the Model
                     'last_message' => $lastMsg ? $lastMsg->body : 'No messages yet',
                     'last_message_time' => $lastMsg ? $lastMsg->created_at : $c->created_at,
                     'unread_count' => ($lastMsg && $lastMsg->sender_id !== $userId && !$lastMsg->is_read) ? 1 : 0
@@ -75,8 +73,6 @@ class ChatController extends Controller
     {
         $userId = Auth::id();
 
-        // [SECURITY FIX] Verify the user actually belongs to this conversation
-        // In your old code, anyone with the ID could read anyone's messages.
         $conversation = Conversation::where('id', $id)
             ->where(function ($q) use ($userId) {
                 $q->where('user1_id', $userId)
@@ -88,7 +84,6 @@ class ChatController extends Controller
             return response()->json(['message' => 'Conversation not found or access denied'], 403);
         }
 
-        // Mark unread messages as read
         Message::where('conversation_id', $id)
             ->where('sender_id', '!=', $userId)
             ->where('is_read', false)
@@ -96,7 +91,7 @@ class ChatController extends Controller
 
         $messages = Message::where('conversation_id', $id)
             ->orderBy('created_at', 'asc')
-            ->get(); // 'body' is automatically decrypted here
+            ->get();
 
         return response()->json(['success' => true, 'data' => $messages]);
     }
@@ -106,7 +101,6 @@ class ChatController extends Controller
         $request->validate(['body' => 'required|string|max:5000']);
         $userId = Auth::id();
 
-        // [SECURITY FIX] Check existence and ownership in one go
         $conversation = Conversation::where('id', $id)
             ->where(function ($q) use ($userId) {
                 $q->where('user1_id', $userId)
@@ -114,30 +108,25 @@ class ChatController extends Controller
             })
             ->firstOrFail();
 
-        // Save to DB (Laravel will ENCRYPT this automatically)
         $message = Message::create([
             'conversation_id' => $id,
             'sender_id' => $userId,
             'body' => $request->body
         ]);
 
-        // Handle FCM
-        // We use $request->body (Plain Text) for the notification so the user can read it on the phone
         $receiverId = ($conversation->user1_id === $userId) ? $conversation->user2_id : $conversation->user1_id;
 
-        // Optimize: Use find() or eager load only the necessary column
         $receiver = User::select('id', 'fcm_token')->find($receiverId);
 
         if ($receiver && $receiver->fcm_token) {
             try {
-                $senderName = Auth::user()->first_name; // Assuming relation or Auth user has this
+                $senderName = Auth::user()->first_name;
                 $this->fcm->send(
                     $receiver->fcm_token,
                     "Message from $senderName",
-                    $request->body // Sending plain text to the device
+                    $request->body
                 );
             } catch (\Exception $e) {
-                // Log error if needed: Log::error($e->getMessage());
             }
         }
 

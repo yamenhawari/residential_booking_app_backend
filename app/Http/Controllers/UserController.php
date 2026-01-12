@@ -97,7 +97,7 @@ class UserController extends Controller
 
     if ($user) {
       $user->update(['fcm_token' => null]);
-      $user->currentAccessToken()::delete();
+      $user->currentAccessToken()->delete();
     }
 
     return response()->json(['message' => 'Logged out successfully']);

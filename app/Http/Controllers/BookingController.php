@@ -19,7 +19,6 @@ class BookingController extends Controller
         $this->fcm = $fcm;
     }
 
-    // --- Helper to Save & Send Notification ---
     private function sendNotification($user, $title, $body, $type = 'info')
     {
         if (!$user) return;

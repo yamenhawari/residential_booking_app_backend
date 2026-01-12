@@ -3,15 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use App\Models\Apartment; // Assuming you have this
-use App\Models\Booking;   // Assuming you have this
+use App\Models\Apartment;
+use App\Models\Booking;
 use App\Models\AppNotification;
 use App\Services\FCMService;
 use Illuminate\Http\Request;
 
 class AdminController extends Controller
 {
-    // 1. Get Dashboard Statistics
     public function getStats()
     {
         return response()->json([
@@ -23,7 +22,6 @@ class AdminController extends Controller
         ]);
     }
 
-    // 2. Get All Users (with optional filtering)
     public function getUsers(Request $request)
     {
         $query = User::query();
@@ -32,7 +30,6 @@ class AdminController extends Controller
             $query->where('status', $request->status);
         }
 
-        // Search by name or phone
         if ($request->has('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -47,7 +44,6 @@ class AdminController extends Controller
         return response()->json(['success' => true, 'data' => $users]);
     }
 
-    // 3. Approve User
     public function approveUser($id)
     {
         $user = User::findOrFail($id);
@@ -57,7 +53,6 @@ class AdminController extends Controller
         return response()->json(['message' => 'User approved successfully']);
     }
 
-    // 4. Reject User (Set to blocked or inactive)
     public function rejectUser($id)
     {
         $user = User::findOrFail($id);
@@ -67,7 +62,6 @@ class AdminController extends Controller
         return response()->json(['message' => 'User rejected']);
     }
 
-    // 5. Delete User (Hard Delete)
     public function deleteUser($id)
     {
         $user = User::findOrFail($id);
@@ -76,7 +70,6 @@ class AdminController extends Controller
         return response()->json(['message' => 'User deleted successfully']);
     }
 
-    // 6. Broadcast Notification to all users with FCM token
     public function broadcastNotification(Request $request, FCMService $fcm)
     {
         $request->validate([
@@ -88,16 +81,14 @@ class AdminController extends Controller
         $count = 0;
 
         foreach ($users as $user) {
-            // 1. Save to History
             AppNotification::create([
                 'user_id' => $user->id,
                 'title' => $request->title,
                 'body' => $request->body,
-                'type' => 'info', // General info type
+                'type' => 'info',
                 'is_read' => false
             ]);
 
-            // 2. Send Push
             try {
                 $fcm->send($user->fcm_token, $request->title, $request->body);
                 $count++;
